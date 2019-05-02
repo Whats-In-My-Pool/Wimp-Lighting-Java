@@ -5,10 +5,11 @@ package man;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Random;
 
 import javax.imageio.ImageIO;
 import javax.swing.JFrame;
@@ -24,13 +25,239 @@ public class Alg {
 	/**
 	 * @param args
 	 */
+	
+	static volatile int[] bestC = new int[3];
+	static volatile int bestResult = 6000;
+	
+	static final int fileslen = 1000;
+	
+	static volatile ArrayList<Thread> openThreads = new ArrayList<Thread>();
+	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		new Alg();
+//		new Alg();         // This runs the strip image examiner to see what surface is.
+//		new ShowFrame();	//this creates new strips and shows them as they are made for debugging. I disabled it for now.
+		
+		
+		
+		
+		
+		File testFile = new File("OUTPUT");
+		File refFile = new File("REF");
+		File[] tests = testFile.listFiles();
+		File[] refs = refFile.listFiles();
+		
+		Random r = new Random();
+		
+
+		BufferedImage s1 = null;
+		BufferedImage ref = null;
+		Colorc correction = new Colorc();
+		
+		ArrayList<int[][]> testData = new ArrayList<int[][]>();
+		
+		for(int i=0;i<fileslen;i++) {//tests.length
+			if(i%100==0) {
+//				System.out.println(i + " tests finished..");
+			}
+			try {
+				s1 = ImageIO.read(tests[i]);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			try {
+				ref = ImageIO.read(refs[i]);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+//			correction.matchStripJON(s1, ref);
+			testData.add(correction.matchStripJON(s1, ref));
+			
+//			testData.add(correction.matchStrip(s1, ref));// LAB method.
+//			break;
+		}
+		
+		
+		System.out.println("DONE TESTING");
+		
+		int wrongStrip = 0;
+		int numberRight = 0;
+		int numberWrong = 0;
+		double exp2 = 0; 
+		for(int i=0;i<testData.size();i++) {
+			int[][] t = testData.get(i);
+			boolean broken = false;//If a strip has any wrong, its going to be counted for non-perfect tests.
+			int errs = 0;
+			for(int u=0;u<6;u++) {
+				if(Math.abs(t[u][0]-t[u][1])>1) { //Selection is +- 1 apart
+//				if(t[u][0]!=t[u][1]) {				// Selections are equal.
+					broken=true;
+					numberWrong++;
+					errs++;
+				}else {
+					numberRight++;
+				}
+			}
+			if(broken) {wrongStrip++;}
+			exp2+=errs*errs;
+		}
+		exp2/=testData.size();
+		exp2 = Math.sqrt(exp2 - numberWrong/testData.size());
+		System.out.println("TOTAL WRONG: " + numberWrong + " TOTAL RIGHT: " + numberRight + " # Wrong Strips: " + wrongStrip + " TOTAL STRIPS: " + testData.size() + " Standard Deviation : " + exp2);
+		
+		
+		///THIS CODE BELOW WAS USED TO FIND MINIMA.
+/*				
+		int ppa = -16;//-20 + r.nextInt(41);
+		int ppb = -14;//-20 + r.nextInt(41);
+		int ppc = 8;//-20 + r.nextInt(41);
+		
+		System.out.println(ppa + " " + ppb + " " + ppc);
+		
+		int[][] window = new int[][] {
+			{ppa-2,ppa+2},
+			{ppb-2,ppb+2},
+			{ppc-2,ppc+2}
+		};
+		
+		int[] lastresults = new int[3];
+
+		for(int l=0;l<20;l++) {
+			while(openThreads.size()>0) {
+				for(int i=0;i<openThreads.size();i++) {
+					if(!openThreads.get(i).isAlive()) {
+						openThreads.remove(i);
+						i--;
+					}
+				}
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			for(int cx=window[0][0];cx<window[0][1];cx++) {
+//				System.out.println(cx);
+				for(int cy=window[1][0];cy<window[1][1];cy++) {
+					for(int cz=window[2][0];cz<window[2][1];cz++) {
+						Thread std = new Thread(cx+","+cy+","+cz){
+							public void run() {
+								BufferedImage s1 = null;
+								BufferedImage ref = null;
+								Colorc correction = new Colorc();
+								String[] ccs = this.getName().split(",");
+								correction.colorShift = new int[] {Integer.parseInt(ccs[0]),Integer.parseInt(ccs[1]),Integer.parseInt(ccs[2])};
+								
+								ArrayList<int[][]> testData = new ArrayList<int[][]>();
+								
+								for(int i=0;i<fileslen;i++) {//tests.length
+									if(i%100==0) {
+//										System.out.println(i + " tests finished..");
+									}
+									try {
+										s1 = ImageIO.read(tests[i]);
+									} catch (IOException e) {
+										// TODO Auto-generated catch block
+										e.printStackTrace();
+									}
+									
+									try {
+										ref = ImageIO.read(refs[i]);
+									} catch (IOException e) {
+										// TODO Auto-generated catch block
+										e.printStackTrace();
+									}
+									
+//									correction.matchStripJON(s1, ref);
+									testData.add(correction.matchStripJON(s1, ref));
+									
+//									testData.add(correction.matchStrip(s1, ref));
+//									break;
+								}
+								
+								
+//								System.out.println("DONE TESTING");
+								
+//								int wrongStrip = 0;
+								int numberRight = 0;
+								int numberWrong = 0;
+								double exp2 = 0; 
+								for(int i=0;i<testData.size();i++) {
+									int[][] t = testData.get(i);
+									boolean broken = false;
+									int errs = 0;
+									for(int u=0;u<6;u++) {
+										if(t[u][0]!=t[u][1]) {
+											broken=true;
+											numberWrong++;
+											errs++;
+										}else {
+											numberRight++;
+										}
+									}
+//									if(broken) {wrongStrip++;}
+//									exp2+=errs*errs;
+								}
+//								exp2/=testData.size();
+//								exp2 = Math.sqrt(exp2 - numberWrong/testData.size());
+//								System.out.println("TOTAL WRONG: " + numberWrong + " TOTAL RIGHT: " + numberRight + " # Wrong Strips: " + wrongStrip + " TOTAL STRIPS: " + testData.size() + " Standard Deviation : " + exp2);
+								if(numberWrong<bestResult) {
+									bestC = new int[] {Integer.parseInt(ccs[0]),Integer.parseInt(ccs[1]),Integer.parseInt(ccs[2])};
+									bestResult = numberWrong;
+								}
+							}
+						};
+						openThreads.add(std);
+						std.start();
+						
+						while(openThreads.size()>40) {
+							for(int i=0;i<openThreads.size();i++) {
+								if(!openThreads.get(i).isAlive()) {
+									openThreads.remove(i);
+									i--;
+								}
+							}
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}
+					}
+				}
+				
+			}
+			System.out.println("MIN POSSIBLE errors " + bestResult + " OUT OF " + (fileslen*6) + " tests");
+			System.out.println("Best SCORE " + bestC[0] + " " + bestC[1] + " " + bestC[2]);
+			
+			window[0][0] = bestC[0]-3;
+			window[0][1] = bestC[0]+3;
+			window[1][0] = bestC[1]-3;
+			window[1][1] = bestC[1]+3;
+			window[2][0] = bestC[2]-3;
+			window[2][1] = bestC[2]+3;
+			if(lastresults[0]==bestC[0] && lastresults[1]==bestC[1] && lastresults[2]==bestC[2]) {
+				return;
+			}
+			lastresults[0]=bestC[0];
+			lastresults[1]=bestC[1];
+			lastresults[2]=bestC[2];
+		}
+		*/
+		///THIS CODE ABOVE WAS USED TO FIND MINIMA.
+		
 	}
+	
+	
 	int[][] colors = null;
-//	int pixel = 2;//DEFAULT
-	int pixel = 4;//USE FOR SCALING
+	int pixel = 2;//DEFAULT
+//	int pixel = 4;//USE FOR SCALING
 	int amplify = 10;
 	
 	int[][] slopes = null;
@@ -118,16 +345,17 @@ public class Alg {
 		try {
 			BufferedImage source = ImageIO.read(new File("Source.jpg"));
 			BufferedImage test = ImageIO.read(new File("Test1.jpg"));
+//			BufferedImage test = ImageIO.read(new File("OUT1.png"));
 			
 			
 			///RESCALE IMAGE
 			
-			Image test2	 = test.getScaledInstance(test.getWidth()/2, test.getHeight()/2, BufferedImage.SCALE_SMOOTH);
-			
-			test = new BufferedImage(test.getWidth()/2,test.getHeight()/2,BufferedImage.TYPE_INT_RGB);
-			Graphics h = test.createGraphics();
-			h.drawImage(test2, 0, 0, null);
-			h.dispose();
+//			Image test2	 = test.getScaledInstance(test.getWidth()/2, test.getHeight()/2, BufferedImage.SCALE_SMOOTH);
+//			
+//			test = new BufferedImage(test.getWidth()/2,test.getHeight()/2,BufferedImage.TYPE_INT_RGB);
+//			Graphics h = test.createGraphics();
+//			h.drawImage(test2, 0, 0, null);
+//			h.dispose();
 			
 			//REASCALE
 			
